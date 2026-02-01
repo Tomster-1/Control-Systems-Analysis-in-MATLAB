@@ -1,0 +1,286 @@
+%% Exercises 1, 2, 3
+% Notes:
+% - Exercise 1 parts (i)-(iii) use K = 10 (per requirement).
+% - Pole/zero maps are plotted manually to guarantee legends.
+% - A clean "PRINT BLOCK" is produced at the end.
+
+clear; close all; clc;
+format compact;
+
+s = tf('s');
+
+%% =========================
+% EXERCISE 1
+% Replace vehicle block with (s+5)/((s+10)(s+2))
+% Inner loop: Plant (vehicle*integrator) with sensor s in negative feedback
+% Outer loop: K gain with unity negative feedback
+% =========================
+
+Gveh = (s + 5)/((s + 10)*(s + 2));
+Gint = 1/s;
+Gsen = s;
+
+% Helper to build overall closed-loop GCL(s) for any K
+makeGCL = @(K) feedback( K * feedback( series(Gveh, Gint), Gsen ), 1 );
+
+% ---- Ex1 (i)-(iii): K = 10
+K_10   = 10;
+GCL_10 = minreal(makeGCL(K_10), 1e-8);
+
+p1_10 = pole(GCL_10);
+z1_10 = zero(GCL_10);
+
+T = 0:0.01:25;             % matches the practical sheet style
+ramp_u = T;                 % unit ramp input (slope = 1)
+
+% Responses for Ex1(iii)
+[y_imp_10, t_imp]  = impulse(GCL_10, T);
+[y_step_10, t_stp] = step(GCL_10, T);
+[y_rmp_10,  t_rmp] = lsim(GCL_10, ramp_u, T);
+
+% ---- Ex1 (iv): compare step for K = 50, 100, 150
+K_set = [50 100 150];
+GCL_50  = minreal(makeGCL(50), 1e-8); %%small value = fine timestep gives precise result
+GCL_100 = minreal(makeGCL(100), 1e-8);
+GCL_150 = minreal(makeGCL(150), 1e-8);
+
+[y50,  t50]  = step(GCL_50,  T);
+[y100, t100] = step(GCL_100, T);
+[y150, t150] = step(GCL_150, T);
+
+% ---- Ex1 (v): K = -100 step response behaviour
+K_neg   = -100;
+GCL_neg = minreal(makeGCL(K_neg), 1e-8);
+
+p1_neg = pole(GCL_neg);
+z1_neg = zero(GCL_neg);
+
+Tneg = 0:0.001:1;                   % short window to show divergence clearly
+[yneg, tneg] = step(GCL_neg, Tneg);
+
+% ---- Ex1 (vi): K = 100 response to input sin((2/3)t)
+Tsin = 0:0.01:25;
+u_sin = sin((2/3)*Tsin);
+[y_sin, t_sin] = lsim(GCL_100, u_sin, Tsin);
+
+%% ---- PLOTS: EX1
+
+% Ex1(ii) Pole-zero map (K=10) with legend
+% Q1(ii) Pole-zero map for K = 10 (not required; but helps visualisation and
+% understanding of pole locations -> informs stability).
+figure('Name','Q1(ii) Pole-Zero Map (K=10)');
+pzmap(GCL_10);
+grid on;
+title('Q1(ii) Pole-Zero Map of GCL(s) (K = 10)');
+annotation('textbox',[0.18 0.42 0.64 0.16], 'String', { ...
+        'Poles = \color{blue}X', ...
+        'Zeros = \color{blue}O'}, 'FitBoxToText','on');
+
+% Ex1(iii) Impulse response
+figure('Name','Q1(iii) Impulse (K=10)');
+plot(t_imp, y_imp_10, 'LineWidth', 1.5); grid on;
+xlabel('Time (s)'); ylabel('\Psi(t)');
+title('Q1(iii) Impulse Response of GCL(s) (K = 10)');
+
+% Ex1(iii) Step response
+figure('Name','Q1(iii) Step (K=10)');
+plot(t_stp, y_step_10, 'LineWidth', 1.5); grid on;
+xlabel('Time (s)'); ylabel('\Psi(t)');
+title('Q1(iii) Unit Step Response of GCL(s) (K = 10)');
+
+% Ex1(iii) Ramp response (plot input + output)
+figure('Name','Q1(iii) Ramp (K=10)');
+plot(t_rmp, y_rmp_10, 'LineWidth', 1.5); hold on;
+plot(T, ramp_u, '--', 'LineWidth', 1.5);
+grid on; xlabel('Time (s)'); ylabel('\Psi(t)');
+legend('Ramp output','Ramp input (u=t)','Location','best');
+title('Q1(iii) Ramp Response of GCL(s) (K = 10)');
+
+% Ex1(iv) Step response comparison on one plot
+figure('Name','Q1(iv) Step Comparison');
+plot(t50,  y50,  'LineWidth', 1.5); hold on;
+plot(t100, y100, 'LineWidth', 1.5);
+plot(t150, y150, 'LineWidth', 1.5);
+grid on; xlabel('Time (s)'); ylabel('\Psi(t)');
+legend('K=50','K=100','K=150','Location','best');
+annotation('textbox',[0.18 0.42 0.64 0.16], 'String', ...
+    {'Observations:', ...
+     '↑K => faster initial response but reduced damping; ↑overshoot & reduced attenuation.', ...
+     'Oscillation frequency increases with K; all settle ≈1 (stable, unity feedback).'}, ...
+    'FitBoxToText','on');
+title('Q1(iv) Unit Step Responses of GCL(s) for K = 50, 100, 150');
+
+% Ex1(v) Step response for K = -100
+figure('Name','Q1(v) Step K=-100');
+plot(tneg, yneg, 'LineWidth', 1.5); grid on;
+xlabel('Time (s)'); ylabel('\Psi(t)');
+annotation('textbox',[0.18 0.3 0.64 0.16], 'String', ...
+    {'Observations:', ...
+     'System is UNSTABLE (a pole is in the right-half plane), so the unit-step response diverges (unbounded, exponential growth).'}, ...
+    'FitBoxToText','on');
+title('Q1(v) Unit Step Response of GCL(s) (K = -100)');
+
+%% =========================
+% EXERCISE 2
+% Compute transfer function between r and y and test stability
+% Given:
+%   G1(s) = 25/(s^2 + 8s + 25)
+%   G2(s) = 2/((s+1)(s+5))
+% From the diagram, overall is equivalent to: y/r = feedback(G1, G2)
+% =========================
+
+G1 = 25/(s^2 + 8*s + 25);
+G2 = 2/((s + 1)*(s + 5));
+
+GCL2 = minreal(feedback(G1, G2), 1e-8);
+p2 = pole(GCL2);
+z2 = zero(GCL2);
+stable2 = isstable(GCL2);
+
+% Q2 Pole-zero map of y/r (Checks poles in LHP)
+figure('Name','Q2 Pole-Zero Map');
+pzmap(GCL2);
+grid on;
+title('Q2 Pole-Zero Map of Closed-Loop System y/r');
+annotation('textbox',[0.18 0.42 0.64 0.16], 'String', { ...
+        'Poles = \color{blue}X', ...
+        'Zeros = \color{blue}O'}, 'FitBoxToText','on');
+
+%% =========================
+% EXERCISE 3
+% G(s) = (6s^2 + 1)/(s^3 + 3s^2 + 3s + 1)
+% H(s) = (s+1)(s+2)/((s+2i)(s-2i)(s+3))
+% Tasks:
+% (i) poles of G
+% (ii) characteristic equation of H (denominator = 0)
+% (iii) J(s) = G(s)/H(s)
+% (iv) pole-zero map + unit step response of J(s) + pole observations
+% =========================
+
+G = (6*s^2 + 1)/(s^3 + 3*s^2 + 3*s + 1);
+
+H_num = conv([1 1],[1 2]);          % (s+1)(s+2)
+H_den = conv([1 0 4],[1 3]);        % (s^2+4)(s+3) = (s+2i)(s-2i)(s+3)
+H = tf(H_num, H_den);
+
+pG = pole(G);
+
+[numH, denH] = tfdata(H,'v');       % for printing characteristic equation
+J = minreal(G / H, 1e-8);
+
+pJ = pole(J);
+zJ = zero(J);
+
+[yJ_step, tJ_step] = step(J, T);
+
+% Plots for Ex3
+
+% Q3(iv) Pole-zero map of J(s)
+figure('Name','Q3(iv) Pole-Zero Map of J');
+pzmap(J);
+grid on;
+annotation('textbox',[0.2 0.70 0.76 0.18], 'String', ...
+    {'Observations:', ...
+     'All poles of J(s) lie on the negative real axis (left-half plane), so the system is stable.', ...
+     'The dominant pole is closest to the imaginary axis; repeated poles near s = −1 slow the decay.', ...
+     'No complex poles are present, so there are no oscillatory modes driven by poles.'}, ...
+    'FitBoxToText','on');
+
+annotation('textbox',[0.18 0.42 0.64 0.16], 'String', { ...
+        'Poles = \color{blue}X', ...
+        'Zeros = \color{blue}O'}, 'FitBoxToText','on');
+
+title('Q3(iv) Pole-Zero Map of J(s) = G(s)/H(s)');
+
+figure('Name','Q3(iv) Step Response of J');
+plot(tJ_step, yJ_step, 'LineWidth', 1.5); grid on;
+xlabel('Time (s)'); ylabel('y(t)');
+title('Q3(iv) Unit Step Response of J(s)');
+
+%% =========================
+% PRINT BLOCK
+% =========================
+
+fprintf('\n============================================================\n');
+fprintf('ENG3018 Practical 0 - MATLAB Outputs (Clean Answer Block)\n');
+fprintf('============================================================\n');
+
+% ---- Exercise 1 outputs
+fprintf('\nQ1(i) Closed-loop transfer function GCL(s) for K = 10:\n');
+fprintf('\nEx1(i) Closed-loop transfer function (analytical form):\n');
+fprintf('G_CL(s) = Psi(s)/Psi_r(s) = K(s+5) / [ s^3 + 13s^2 + (25+K)s + 5K ]\n');
+disp(GCL_10);
+
+[num1, den1] = tfdata(GCL_10, 'v');
+
+fprintf('Q1(i) Closed-loop transfer function GCL(s), K = 10:\n');
+fprintf('  (%s)\n', poly2str(num1,'s'));
+fprintf('  ------------------------------\n');
+fprintf('  (%s)\n\n', poly2str(den1,'s'));
+
+fprintf('Q1(ii) Poles of GCL(s) (K = 10):\n');
+disp(p1_10);
+fprintf('Q1(ii) Zeros of GCL(s) (K = 10):\n');
+disp(z1_10);
+
+fprintf('Q1(iii) Responses generated (K = 10): impulse, step, ramp (u=t).\n');
+
+fprintf('\nQ1(iv) Step-response comparison computed for K = 50, 100, 150 (single plot).\n');
+
+fprintf('\nQ1(v) For K = -100:\n');
+fprintf('  Closed-loop poles are:\n');
+disp(p1_neg);
+fprintf('  Brief observation: ');
+if isstable(GCL_neg)
+    fprintf('System remains stable; step response stays bounded.\n');
+else
+    fprintf(['System is UNSTABLE (a pole is in the right-half plane), ' ...
+             'so the unit-step response grows without bound (diverges).\n']);
+end
+
+fprintf('\nQ1(vi) For K = 100, response to input u(t) = sin((2/3)t) simulated with lsim.\n');
+
+% ---- Exercise 2 outputs
+fprintf('\nQ2 Transfer function y/r:\n');
+disp(GCL2);
+
+[num1, den1] = tfdata(GCL_10, 'v');
+
+fprintf('Q1(i) Closed-loop transfer function GCL(s), K = 10:\n');
+fprintf('  (%s)\n', poly2str(num1,'s'));
+fprintf('  ------------------------------\n');
+fprintf('  (%s)\n\n', poly2str(den1,'s'));
+
+fprintf('Q2 Poles:\n'); disp(p2);
+fprintf('Q2 Zeros:\n'); disp(z2);
+fprintf('Q2 Stability test (isstable): %d (1=stable, 0=unstable)\n', stable2);
+
+% ---- Exercise 3 outputs
+fprintf('\nQ3(i) Poles of G(s):\n');
+disp(pG);
+
+fprintf('Q3(ii) Characteristic equation of H(s) (denominator = 0):\n');
+fprintf('  Den_H(s) = %s = 0\n', poly2str(denH,'s'));
+
+fprintf('Q3(iii) Resultant transfer function J(s) = G(s)/H(s):\n');
+disp(J);
+
+[numJ, denJ] = tfdata(J, 'v');
+
+fprintf('Q3(iii) Resultant transfer function J(s) = G(s)/H(s):\n');
+fprintf('  (%s)\n', poly2str(numJ,'s'));
+fprintf('  ------------------------------\n');
+fprintf('  (%s)\n\n', poly2str(denJ,'s'));
+
+fprintf('Q3(iv) Poles of J(s):\n');
+disp(pJ);
+fprintf('Q3(iv) Zeros of J(s):\n');
+disp(zJ);
+
+fprintf('Q3(iv) Pole observations from pole-zero map (required):\n');
+fprintf(['  - All poles of J(s) lie on the negative real axis (left-half plane), so J is stable.\n' ...
+         '  - The dominant pole location is closest to the imaginary axis; repeated poles near s=-1 slow the decay.\n' ...
+         '  - No complex poles => no oscillatory modes driven by poles.\n']);
+
+
+fprintf('\n============================================================\n');
