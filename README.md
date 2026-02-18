@@ -26,15 +26,15 @@ K
 ```
 
 For the specific gain cases:
-- ```math
+  ```math
   K = 10
   ```
   The script computes poles/zeros and generates impulse, step, and ramp responses.
-- ```math
+ ```math
   K \in \{50,\ 100,\ 150\}
   ```
   Step responses are compared on a single figure to show gain effects on rise time, overshoot, and damping.
-- ```math
+ ```math
   K = -100
   ```
   Instability is demonstrated via a divergent step response.
